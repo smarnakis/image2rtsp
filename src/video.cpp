@@ -100,7 +100,6 @@ static void media_configure(GstRTSPMediaFactory *factory, GstRTSPMedia *media, G
         }
     }
 }
-
 GstCaps *Image2rtsp::gst_caps_new_from_image(const sensor_msgs::msg::Image::SharedPtr &msg){
     // http://gstreamer.freedesktop.org/data/doc/gstreamer/head/pwg/html/section-types-definitions.html
     static const std::map<std::string, std::string> known_formats = {
@@ -136,6 +135,23 @@ GstCaps *Image2rtsp::gst_caps_new_from_image(const sensor_msgs::msg::Image::Shar
                                nullptr);
 }
 
+GstCaps *Image2rtsp::gst_caps_new_from_compressed_image(const sensor_msgs::msg::CompressedImage::SharedPtr &msg){
+    // http://gstreamer.freedesktop.org/data/doc/gstreamer/head/pwg/html/section-types-definitions.html
+
+
+    auto format = msg->format;
+    if (format.c_str() == "jpeg"){
+        RCLCPP_ERROR(this->get_logger(), "GST: image format '%s' unknown", msg->format.c_str());
+        return nullptr;
+    }
+
+    return gst_caps_new_simple("video/x-compressed",
+                               "format", G_TYPE_STRING, format,
+                               "framerate", GST_TYPE_FRACTION, stoi(framerate), 1,
+                               nullptr);
+}
+
+
 static gboolean session_cleanup(Image2rtsp *node, rclcpp::Logger logger, gboolean ignored){
     GstRTSPServer *server = node->rtsp_server;
     GstRTSPSessionPool *pool;
@@ -166,5 +182,20 @@ void Image2rtsp::topic_callback(const sensor_msgs::msg::Image::SharedPtr msg){
         gst_buffer_fill(buf, 0, msg->data.data(), msg->data.size());
         GST_BUFFER_FLAG_SET(buf, GST_BUFFER_FLAG_LIVE);
         gst_app_src_push_buffer(appsrc, buf);
+    }
+}
+
+void Image2rtsp::topic_compressed_callback(const sensor_msgs::msg::CompressedImage::SharedPtr msg){
+    GstBuffer *buf;
+    GstCaps *caps; // image properties. see return of Image2rtsp::gst_caps_new_from_image
+    char *gst_type, *gst_format = (char *)"";
+    if (appsrcComp != NULL){
+        // Set caps from message
+        caps = gst_caps_new_from_compressed_image(msg);
+        gst_app_src_set_caps(appsrcComp, caps);
+        buf = gst_buffer_new_allocate(nullptr, msg->data.size(), nullptr);
+        gst_buffer_fill(buf, 0, msg->data.data(), msg->data.size());
+        GST_BUFFER_FLAG_SET(buf, GST_BUFFER_FLAG_LIVE);
+        gst_app_src_push_buffer(appsrcComp, buf);
     }
 }
