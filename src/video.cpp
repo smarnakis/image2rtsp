@@ -128,7 +128,7 @@ GstCaps *Image2rtsp::gst_caps_new_from_image(const sensor_msgs::msg::Image::Shar
     }
 
     return gst_caps_new_simple("video/x-raw",
-                               "format", G_TYPE_STRING, format->second.c_str(),
+                               "format", G_TYPE_STRING, "GRAY8",// format->second.c_str(),
                                "width", G_TYPE_INT, msg->width,
                                "height", G_TYPE_INT, msg->height,
                                "framerate", GST_TYPE_FRACTION, stoi(framerate), 1,
@@ -138,17 +138,31 @@ GstCaps *Image2rtsp::gst_caps_new_from_image(const sensor_msgs::msg::Image::Shar
 GstCaps *Image2rtsp::gst_caps_new_from_compressed_image(const sensor_msgs::msg::CompressedImage::SharedPtr &msg){
     // http://gstreamer.freedesktop.org/data/doc/gstreamer/head/pwg/html/section-types-definitions.html
 
-
+    static const std::map<std::string, std::string> known_formats = {
+        {sensor_msgs::image_encodings::RGB8, "RGB"},
+        {sensor_msgs::image_encodings::RGB16, "RGB16"},
+        {sensor_msgs::image_encodings::RGBA8, "RGBA"},
+        {sensor_msgs::image_encodings::RGBA16, "RGBA16"},
+        {sensor_msgs::image_encodings::BGR8, "BGR"},
+        {sensor_msgs::image_encodings::BGR16, "BGR16"},
+        {sensor_msgs::image_encodings::BGRA8, "BGRA"},
+        {sensor_msgs::image_encodings::BGRA16, "BGRA16"},
+        {sensor_msgs::image_encodings::MONO8, "GRAY8"},
+        {sensor_msgs::image_encodings::MONO16, "GRAY16_LE"},
+        {sensor_msgs::image_encodings::YUV422, "YUY2"},
+    };
     auto format = msg->format;
-    if (format.c_str() == "jpeg"){
+    if (format.c_str() != "jpeg"){
         RCLCPP_ERROR(this->get_logger(), "GST: image format '%s' unknown", msg->format.c_str());
         return nullptr;
     }
 
-    return gst_caps_new_simple("video/x-compressed",
-                               "format", G_TYPE_STRING, format,
+    return gst_caps_new_simple("video/x-jpeg",
+                               "format", G_TYPE_STRING, "BGR",
+                               "width", G_TYPE_INT, 640,
+                               "height", G_TYPE_INT, 480,
                                "framerate", GST_TYPE_FRACTION, stoi(framerate), 1,
-                               nullptr);
+                                nullptr);
 }
 
 
@@ -186,16 +200,18 @@ void Image2rtsp::topic_callback(const sensor_msgs::msg::Image::SharedPtr msg){
 }
 
 void Image2rtsp::topic_compressed_callback(const sensor_msgs::msg::CompressedImage::SharedPtr msg){
+    // RCLCPP_INFO(this->get_logger(),"MPHKA CALLBACK");
     GstBuffer *buf;
     GstCaps *caps; // image properties. see return of Image2rtsp::gst_caps_new_from_image
     char *gst_type, *gst_format = (char *)"";
-    if (appsrcComp != NULL){
+    if (appsrc != NULL){
+        RCLCPP_INFO(this->get_logger(),"MPHKA CALLBACK IF");
         // Set caps from message
         caps = gst_caps_new_from_compressed_image(msg);
-        gst_app_src_set_caps(appsrcComp, caps);
+        gst_app_src_set_caps(appsrc, caps);
         buf = gst_buffer_new_allocate(nullptr, msg->data.size(), nullptr);
         gst_buffer_fill(buf, 0, msg->data.data(), msg->data.size());
         GST_BUFFER_FLAG_SET(buf, GST_BUFFER_FLAG_LIVE);
-        gst_app_src_push_buffer(appsrcComp, buf);
+        gst_app_src_push_buffer(appsrc, buf);
     }
 }

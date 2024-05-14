@@ -7,6 +7,8 @@
 #include <string>
 #include "sensor_msgs/msg/image.hpp"
 #include "sensor_msgs/msg/compressed_image.hpp"
+#include <image_transport/image_transport.h>
+#include <cv_bridge/cv_bridge.h>
 
 using namespace std;
 
@@ -14,6 +16,7 @@ class Image2rtsp : public rclcpp::Node{
 public:
     Image2rtsp();
     GstRTSPServer *rtsp_server;
+    // GstRTSPServer *rtsp_server_comp;
 
 private:
     string source;
@@ -26,11 +29,13 @@ private:
     string caps_2;
     string caps_3;
     string port;
+    string port_compressed;
     string pipeline;
     string pipeline_head;
     string pipeline_tail;
     bool local_only;
     bool camera;
+    bool raw;
     GstAppSrc *appsrc;
     GstAppSrc *appsrcComp;
 
